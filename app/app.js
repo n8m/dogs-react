@@ -11,8 +11,9 @@ import '@babel/polyfill';
 // Import all the third party stuff
 import React from 'react';
 import ReactDOM from 'react-dom';
+import Axios from 'axios';
 import { Provider } from 'react-redux';
-import { ConnectedRouter } from 'connected-react-router';
+import { createStore } from 'redux';
 import FontFaceObserver from 'fontfaceobserver';
 import history from 'utils/history';
 import 'sanitize.css/sanitize.css';
@@ -41,56 +42,196 @@ openSansObserver.load().then(() => {
   document.body.classList.add('fontLoaded');
 });
 
-// Create redux store with history
 const initialState = {};
-const store = configureStore(initialState, history);
-const MOUNT_NODE = document.getElementById('app');
+// const store = configureStore(initialState, history);
 
-const render = messages => {
-  ReactDOM.render(
-    <Provider store={store}>
-      <LanguageProvider messages={messages}>
-        <ConnectedRouter history={history}>
-          <App />
-        </ConnectedRouter>
-      </LanguageProvider>
-    </Provider>,
-    MOUNT_NODE,
-  );
-};
+// function reducer(state = [], {payload}){
+//   return [
+//     ...state,
+//     payload
+//   ];
+// }
 
-if (module.hot) {
-  // Hot reloadable React components and translation json files
-  // modules.hot.accept does not accept dynamic dependencies,
-  // have to be constants at compile-time
-  module.hot.accept(['./i18n', 'containers/App'], () => {
-    ReactDOM.unmountComponentAtNode(MOUNT_NODE);
-    render(translationMessages);
-  });
-}
+// var store = createStore(reducer);
 
-// Chunked polyfill for browsers without Intl support
-if (!window.Intl) {
-  new Promise(resolve => {
-    resolve(import('intl'));
-  })
-    .then(() =>
-      Promise.all([
-        import('intl/locale-data/jsonp/en.js'),
-        import('intl/locale-data/jsonp/de.js'),
-      ]),
-    ) // eslint-disable-line prettier/prettier
-    .then(() => render(translationMessages))
-    .catch(err => {
-      throw err;
+// store.subscribe(() => {
+//   console.log('subscribe', store.getState());
+// })
+
+// class Todo extends React.Component {
+//   state = { input: "" , todos: []};
+
+//   inputChanged = ({ target }) => {
+//     const { value: input } = target;
+//     this.setState(state => ({ input }));
+//   }
+
+//   addTodo = (e) => {
+
+//     e.preventDefault();
+
+//     const todos = this.state.todos.concat([this.state.input]);
+
+//     this.setState(state => ({
+//       input: "",
+//       todos: todos
+//     }));
+//   }
+
+//   render() {
+
+//     this.todosList = this.state.todos.map(function(name){
+//       return <li key={name}>{name}</li>;
+//     })
+
+//     return (
+//       <div>
+
+//         <ul>
+//           {this.todosList}
+//         </ul>
+
+//         <form onSubmit={this.addTodo}>
+//         <input type="text" onChange={this.inputChanged} value={this.state.input} placeholder="TYPE IN MFucker" />{this.state.input}
+//         <button type="submit" onClick={this.addTodo}>Add</button>
+//         </form>
+//       </div>
+//       );
+//   }
+// }
+
+class BreedList extends React.Component {
+
+  state = { "breeds": [], breed: "" };
+
+  getBreedsList = () => {
+    Axios.get('https://dog.ceo/api/breeds/list/all').then(({data}) => {
+      this.setState(state => ({
+        breeds: data.message
+      }))
+    })
+  }
+
+  componentDidMount = () => {
+    this.getBreedsList();
+  }
+
+  changebreedcallback = (breed, subbreed) => {
+    //if second parameter is subbreed, not javascript event
+    if(typeof subbreed !== "string"){
+      subbreed = null;
+    }
+    this.props.changebreedcallback(breed, subbreed);
+  }
+
+  render(){
+
+    let breedsList = Object.keys(this.state.breeds).map((breed, index) => {
+      return (
+        <li key={index} onClick={this.changebreedcallback.bind(this, breed)}>
+          {breed}
+          { this.state.breeds[breed].length ? <Subbreeds breed={breed} changebreedcallback={ this.changebreedcallback } data={ this.state.breeds[breed] } /> : null}
+        </li>
+      )
     });
-} else {
-  render(translationMessages);
+
+    return (
+      <div>
+        <h1>BREEDS</h1>
+        <ul>
+          {breedsList}
+        </ul>
+      </div>
+    )
+  }
 }
 
-// Install ServiceWorker and AppCache in the end since
-// it's not most important operation and if main code fails,
-// we do not want it installed
-if (process.env.NODE_ENV === 'production') {
-  require('offline-plugin/runtime').install(); // eslint-disable-line global-require
+class BreedImg extends React.Component {
+
+  state = {imgurl: ''};
+
+  componentDidUpdate = (prevProps) => {
+
+    if (this.props.breed === prevProps.breed && this.props.subbreed === prevProps.subbreed) return;
+
+    if(this.props.breed){
+      let url = this.props.subbreed ? 'https://dog.ceo/api/breed/' + this.props.breed + '/' + this.props.subbreed + '/images/random' : 'https://dog.ceo/api/breed/' + this.props.breed + '/images/random';
+      Axios.get(url).then(({data}) => {
+        this.setState({imgurl: data.message});
+      })
+    }
+
+  }
+
+  render = () => {
+
+    return (
+      <div>
+        {this.props.breed} {this.props.subbreed ? " ->" + this.props.subbreed : null}
+        <img src={this.state.imgurl} />
+      </div>
+    )
+  }
 }
+
+class Subbreeds extends React.Component {
+
+  changebreedcallback = (breed, subbreed, event) => {
+    event.stopPropagation();
+    this.props.changebreedcallback(breed, subbreed);
+  }
+
+  render = () => {
+
+    const subbreeds = this.props.data.map((subbreed, index) => {
+      return <li key={index} onClick={this.changebreedcallback.bind(this, this.props.breed, subbreed)}>{subbreed}</li>
+    })
+
+    return (
+      <ul>
+        {subbreeds}
+      </ul>
+    )
+  }
+}
+
+class DogApp extends React.Component {
+
+  state = {
+    breed: "",
+    subbreed: ""
+  }
+
+  changeImg = (breed, subbreed) => {
+    this.setState(state => ({
+      breed: breed,
+      subbreed: subbreed
+    }));
+  }
+
+  render(){
+    return (
+      <div>
+        <BreedImg breed={this.state.breed} subbreed={this.state.subbreed}></BreedImg>        
+        <BreedList changebreedcallback={this.changeImg}></BreedList>
+      </div>
+    )
+  }
+}
+
+// ReactDOM.render(
+//   <Todo />,
+//   document.getElementById('todo')
+// );
+
+ReactDOM.render(
+    <Provider store={store}>
+      <DogApp />
+    </Provider>,
+  document.getElementById('dog')
+);
+
+
+
+
+
